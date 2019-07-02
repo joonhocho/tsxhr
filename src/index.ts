@@ -18,19 +18,43 @@ export class Request<TData> {
   public success = false;
   public aborted = false;
   public timedout = false;
-
   public headersReceived = false;
 
-  constructor(
-    public xhr: XMLHttpRequest,
-    public response: Promise<IRequestResponse<TData>>
-  ) {}
+  public response: Promise<IRequestResponse<TData>>;
+
+  private _resolve?: (
+    value?:
+      | IRequestResponse<TData>
+      | PromiseLike<IRequestResponse<TData>>
+      | undefined
+  ) => void;
+  private _reject?: (reason?: any) => void;
+
+  constructor(public xhr: XMLHttpRequest) {
+    this.response = new Promise((resolve, reject): void => {
+      this._resolve = resolve;
+      this._reject = reject;
+    });
+  }
 
   public abort(): void {
     if (!this.aborted) {
       this.aborted = true;
-      this.done = true;
       this.xhr.abort();
+    }
+  }
+
+  public resolve(value: IRequestResponse<TData>): void {
+    if (this._resolve) {
+      this._resolve(value);
+      this._resolve = this._reject = undefined;
+    }
+  }
+
+  public reject(reason?: any): void {
+    if (this._reject) {
+      this._reject(reason);
+      this._resolve = this._reject = undefined;
     }
   }
 }
@@ -126,152 +150,153 @@ export const request = <TData = any>({
     xhr,
   });
 
-  const req = new Request<TData>(
-    xhr,
-    new Promise<IRequestResponse<TData>>((resolve): void => {
-      // progress
-      xhr.onloadstart = xhr.onloadend = xhr.onprogress = (e): void => {
-        if (!req.done && onProgress) {
-          onProgress(e);
+  const req = new Request<TData>(xhr);
+
+  try {
+    // progress
+    xhr.onloadstart = xhr.onloadend = xhr.onprogress = (e): void => {
+      if (!req.done && onProgress) {
+        onProgress(e);
+      }
+    };
+
+    if (onUploadProgress && xhr.upload) {
+      xhr.upload.onprogress = (e): void => {
+        if (!req.done) {
+          onUploadProgress(e);
         }
       };
+    }
 
-      if (onUploadProgress && xhr.upload) {
-        xhr.upload.onprogress = (e): void => {
-          if (!req.done) {
-            onUploadProgress(e);
-          }
-        };
+    // tries to get header info to the app as fast as possible
+    xhr.onreadystatechange = (): void => {
+      if (xhr.readyState < ReadyState.HEADERS_RECEIVED) {
+        // not interesting in these states ('unsent' and 'openend' as they don't give us any additional info)
+        return;
       }
 
-      // tries to get header info to the app as fast as possible
-      xhr.onreadystatechange = (): void => {
-        if (xhr.readyState < ReadyState.HEADERS_RECEIVED) {
-          // not interesting in these states ('unsent' and 'openend' as they don't give us any additional info)
-          return;
+      if (!req.headersReceived) {
+        req.headersReceived = true;
+        if (onHeaders) {
+          onHeaders(req);
         }
+      }
 
-        if (!req.headersReceived) {
-          req.headersReceived = true;
-          if (onHeaders) {
-            onHeaders(req);
-          }
-        }
+      if (!req.done && xhr.readyState === ReadyState.DONE) {
+        req.done = true;
+        req.success = true;
+        req.resolve(getResponse());
+      }
+    };
 
-        if (!req.done && xhr.readyState === ReadyState.DONE) {
-          req.done = true;
-          req.success = true;
-          resolve(getResponse());
-        }
-      };
+    xhr.onload = (): void => {
+      if (!req.done) {
+        req.done = true;
+        req.success = true;
+        req.resolve(getResponse());
+      }
+    };
 
-      xhr.onload = (): void => {
-        if (!req.done) {
-          req.done = true;
-          req.success = true;
-          resolve(getResponse());
-        }
-      };
+    xhr.onerror = (): void => {
+      if (!req.done) {
+        req.done = true;
+        req.success = false;
+        req.resolve(getResponse('error'));
+      }
+    };
 
-      xhr.onerror = (): void => {
-        if (!req.done) {
-          req.done = true;
-          req.success = false;
-          resolve(getResponse('error'));
-        }
-      };
+    xhr.onabort = (): void => {
+      if (!req.done) {
+        req.done = true;
+        req.aborted = true;
+        req.success = false;
+        req.resolve(getResponse('abort'));
+      }
+    };
 
-      xhr.onabort = (): void => {
-        if (!req.done) {
-          req.done = true;
-          req.aborted = true;
-          req.success = false;
-          resolve(getResponse('abort'));
-        }
-      };
+    xhr.ontimeout = (): void => {
+      if (!req.done) {
+        req.done = true;
+        req.timedout = true;
+        req.success = false;
+        req.resolve(getResponse('timeout'));
+      }
+    };
 
-      xhr.ontimeout = (): void => {
+    xhr.open(method, url, true);
+
+    if (withCredentials) {
+      // after open
+      xhr.withCredentials = true;
+    }
+
+    if (timeout) {
+      // set timeout if defined (do it after open so IE11 plays ball)
+      xhr.timeout = timeout;
+      setTimeout(() => {
         if (!req.done) {
           req.done = true;
           req.timedout = true;
           req.success = false;
-          resolve(getResponse('timeout'));
+          req.resolve(getResponse('timeout'));
         }
-      };
+      }, timeout);
+    }
 
-      xhr.open(method, url, true);
-
-      if (withCredentials) {
-        // after open
-        xhr.withCredentials = true;
+    // set headers
+    let headersCopy = headers;
+    if (json) {
+      headersCopy = { ...headers };
+      if (!headersCopy) {
+        headersCopy = {};
       }
-
-      if (timeout) {
-        // set timeout if defined (do it after open so IE11 plays ball)
-        xhr.timeout = timeout;
-        setTimeout(() => {
-          if (!req.done) {
-            req.done = true;
-            req.timedout = true;
-            req.success = false;
-            resolve(getResponse('timeout'));
-          }
-        }, timeout);
+      if (!headersCopy.accept && !headersCopy.Accept) {
+        headersCopy.Accept = 'application/json';
       }
-
-      // set headers
-      let headersCopy = headers;
-      if (json) {
-        headersCopy = { ...headers };
-        if (!headersCopy) {
-          headersCopy = {};
-        }
-        if (!headersCopy.accept && !headersCopy.Accept) {
-          headersCopy.Accept = 'application/json';
-        }
-        if (
-          method !== 'GET' &&
-          method !== 'HEAD' &&
-          !headersCopy['content-type'] &&
-          !headersCopy['Content-Type']
-        ) {
-          headersCopy['Content-Type'] = 'application/json';
-        }
-      }
-
-      if (headersCopy) {
-        Object.keys(headersCopy).forEach((key) =>
-          xhr.setRequestHeader(key, headersCopy![key])
-        );
-      }
-
-      if (listeners) {
-        Object.keys(listeners).forEach((key) =>
-          xhr.addEventListener(key, listeners[key])
-        );
-      }
-
-      if (responseType) {
-        xhr.responseType = responseType;
-      } else if (json) {
-        xhr.responseType = 'json';
-      }
-
-      let body = data == null ? null : data;
       if (
-        body != null &&
-        typeof body !== 'string' &&
-        headersCopy &&
-        jsonRegex.test(
-          headersCopy['content-type'] || headersCopy['Content-Type'] || ''
-        )
+        method !== 'GET' &&
+        method !== 'HEAD' &&
+        !headersCopy['content-type'] &&
+        !headersCopy['Content-Type']
       ) {
-        body = JSON.stringify(body);
+        headersCopy['Content-Type'] = 'application/json';
       }
+    }
 
-      xhr.send(body);
-    })
-  );
+    if (headersCopy) {
+      Object.keys(headersCopy).forEach((key) =>
+        xhr.setRequestHeader(key, headersCopy![key])
+      );
+    }
+
+    if (listeners) {
+      Object.keys(listeners).forEach((key) =>
+        xhr.addEventListener(key, listeners[key])
+      );
+    }
+
+    if (responseType) {
+      xhr.responseType = responseType;
+    } else if (json) {
+      xhr.responseType = 'json';
+    }
+
+    let body = data == null ? null : data;
+    if (
+      body != null &&
+      typeof body !== 'string' &&
+      headersCopy &&
+      jsonRegex.test(
+        headersCopy['content-type'] || headersCopy['Content-Type'] || ''
+      )
+    ) {
+      body = JSON.stringify(body);
+    }
+
+    xhr.send(body);
+  } catch (e) {
+    req.resolve(getResponse('error'));
+  }
 
   return req;
 };
