@@ -182,11 +182,14 @@ export const request = <TData = any>({
         }
       }
 
-      if (!req.done && xhr.readyState === ReadyState.DONE) {
-        req.done = true;
-        req.success = true;
-        req.resolve(getResponse());
-      }
+      setTimeout(() => {
+        // timeout so that this gets called after onload/onerror/onabort
+        if (!req.done && xhr.readyState === ReadyState.DONE) {
+          req.done = true;
+          req.success = true;
+          req.resolve(getResponse());
+        }
+      }, 1);
     };
 
     xhr.onload = (): void => {
