@@ -1,305 +1,123 @@
 // https://github.com/pqina/filepond/blob/master/src/js/utils/sendRequest.js
 // https://github.com/radiosilence/xr/blob/master/src/xr.ts
 // https://github.com/naugtur/xhr/blob/master/index.js
+import { end } from './end';
+import { getRequestHeaders, setRequestHeaders } from './headers';
+import { getRedirectOptions } from './redirect';
+import { Request } from './request';
+import { getRequestBody } from './requestBody';
+import { IRequestOptions, ReadyState } from './ts';
 
-export type HTTPMethod =
-  | 'CONNECT'
-  | 'DELETE'
-  | 'GET'
-  | 'HEAD'
-  | 'OPTIONS'
-  | 'PATCH'
-  | 'POST'
-  | 'PUT'
-  | 'TRACE';
+export const request = <TData = any>(
+  options: IRequestOptions<TData>
+): Request<TData> =>
+  new Request<TData>(
+    new XMLHttpRequest(),
+    options,
+    (req: Request<TData>, resolve, reject): void => {
+      const { xhr } = req;
+      const {
+        method,
+        url,
+        listeners,
+        withCredentials,
+        responseType,
+        json,
+        timeout,
+        onProgress,
+        onUploadProgress,
+        onRedirect,
+      } = options;
 
-export class Request<TData> {
-  public done = false;
-  public success = false;
-  public aborted = false;
-  public timedout = false;
-  public headersReceived = false;
+      try {
+        // progress
+        xhr.onloadstart = xhr.onloadend = xhr.onprogress = (e): void => {
+          if (!req.done && onProgress) {
+            onProgress(e);
+          }
+        };
 
-  public response: Promise<IRequestResponse<TData>>;
-
-  private _resolve?: (
-    value?:
-      | IRequestResponse<TData>
-      | PromiseLike<IRequestResponse<TData>>
-      | undefined
-  ) => void;
-  private _reject?: (reason?: any) => void;
-
-  constructor(public xhr: XMLHttpRequest) {
-    this.response = new Promise((resolve, reject): void => {
-      this._resolve = resolve;
-      this._reject = reject;
-    });
-  }
-
-  public abort(): void {
-    if (!this.aborted) {
-      this.aborted = true;
-      this.xhr.abort();
-    }
-  }
-
-  public resolve(value: IRequestResponse<TData>): void {
-    if (this._resolve) {
-      this._resolve(value);
-      this._resolve = this._reject = undefined;
-    }
-  }
-
-  public reject(reason?: any): void {
-    if (this._reject) {
-      this._reject(reason);
-      this._resolve = this._reject = undefined;
-    }
-  }
-}
-
-export type Listener = (e: unknown) => void;
-
-export interface IRequestOptions<TData> {
-  method: HTTPMethod;
-  url: string;
-  data?: any;
-  headers?: Record<string, string>;
-  listeners?: Record<string, Listener>;
-  withCredentials?: boolean;
-  responseType?: XMLHttpRequestResponseType;
-  timeout?: number;
-  json?: boolean;
-  onHeaders?: (req: Request<TData>) => void;
-  onProgress?: (e: ProgressEvent) => void;
-  onUploadProgress?: (e: ProgressEvent) => void;
-}
-
-export type ErrorReason = 'timeout' | 'abort' | 'error';
-
-export interface IRequestResponse<TData> {
-  status: number;
-  statusText: string;
-  success: boolean;
-  data: TData | undefined;
-  error: ErrorReason | undefined;
-  xhr: XMLHttpRequest;
-}
-
-export enum ReadyState {
-  UNSENT = 0, // Client has been created. open() not called yet.
-  OPENED = 1, // open() has been called.
-  HEADERS_RECEIVED = 2, // send() has been called, and headers and status are available.
-  LOADING = 3, // 	Downloading; responseText holds partial data.
-  DONE = 4,
-}
-
-const jsonRegex = /^application\/json\b/i;
-
-const getData = (xhr: XMLHttpRequest, json?: boolean): any => {
-  try {
-    const { response } = xhr;
-    if (response !== undefined) {
-      return response;
-    }
-
-    const { responseText } = xhr;
-    if (
-      responseText &&
-      (json ||
-        jsonRegex.test(
-          xhr.getResponseHeader('Content-Type') ||
-            xhr.getResponseHeader('content-type') ||
-            ''
-        ))
-    ) {
-      return JSON.parse(responseText);
-    }
-
-    return responseText;
-  } catch (e) {
-    // noop
-  }
-};
-
-export const request = <TData = any>({
-  method,
-  url,
-  headers,
-  listeners,
-  data,
-  withCredentials,
-  responseType,
-  timeout,
-  json,
-  onHeaders,
-  onProgress,
-  onUploadProgress,
-}: IRequestOptions<TData>): Request<TData> => {
-  const xhr = new XMLHttpRequest();
-
-  const getResponse = (error?: ErrorReason): IRequestResponse<TData> => ({
-    status: xhr.status || 0,
-    statusText: xhr.statusText || '',
-    success: xhr.status >= 200 && xhr.status < 300,
-    get data(): TData {
-      return getData(xhr, json);
-    },
-    error,
-    xhr,
-  });
-
-  const req = new Request<TData>(xhr);
-
-  try {
-    // progress
-    xhr.onloadstart = xhr.onloadend = xhr.onprogress = (e): void => {
-      if (!req.done && onProgress) {
-        onProgress(e);
-      }
-    };
-
-    if (onUploadProgress && xhr.upload) {
-      xhr.upload.onprogress = (e): void => {
-        if (!req.done) {
-          onUploadProgress(e);
+        // upload progress
+        if (onUploadProgress && xhr.upload) {
+          xhr.upload.onprogress = (e): void => {
+            if (!req.done) {
+              onUploadProgress(e);
+            }
+          };
         }
-      };
-    }
 
-    // tries to get header info to the app as fast as possible
-    xhr.onreadystatechange = (): void => {
-      if (xhr.readyState < ReadyState.HEADERS_RECEIVED) {
-        // not interesting in these states ('unsent' and 'openend' as they don't give us any additional info)
-        return;
-      }
+        // tries to get header info to the app as fast as possible
+        xhr.onreadystatechange = (): void => {
+          if (xhr.readyState === ReadyState.DONE) {
+            // timeout so that this gets called after onload/onerror/onabort
+            // should not be here in general
+            setTimeout(() => end(req, 'success', resolve), 1);
+          }
+        };
 
-      if (!req.headersReceived) {
-        req.headersReceived = true;
-        if (onHeaders) {
-          onHeaders(req);
+        xhr.onload = (): void => {
+          if (!req.done) {
+            const redirectOpts = getRedirectOptions(req);
+            if (
+              redirectOpts &&
+              (!onRedirect || onRedirect(redirectOpts, req) !== false)
+            ) {
+              // remove listeners
+              if (listeners) {
+                Object.keys(listeners).forEach((key) =>
+                  xhr.removeEventListener(key, listeners[key])
+                );
+              }
+
+              const nextReq = request(redirectOpts);
+              req.redirectReq = nextReq;
+              nextReq.res.then(resolve, reject);
+              end(req, 'redirect', resolve);
+              return;
+            }
+
+            end(req, 'success', resolve);
+          }
+        };
+
+        xhr.onerror = (): void => end(req, 'error', resolve);
+        xhr.onabort = (): void => end(req, 'abort', resolve);
+        xhr.ontimeout = (): void => end(req, 'timeout', resolve);
+
+        // add listeners
+        if (listeners) {
+          Object.keys(listeners).forEach((key) =>
+            xhr.addEventListener(key, listeners[key])
+          );
         }
-      }
 
-      setTimeout(() => {
-        // timeout so that this gets called after onload/onerror/onabort
-        if (!req.done && xhr.readyState === ReadyState.DONE) {
-          req.done = true;
-          req.success = true;
-          req.resolve(getResponse());
+        xhr.open(method, url, true);
+
+        if (withCredentials) {
+          // after open
+          xhr.withCredentials = true;
         }
-      }, 1);
-    };
 
-    xhr.onload = (): void => {
-      if (!req.done) {
-        req.done = true;
-        req.success = true;
-        req.resolve(getResponse());
-      }
-    };
-
-    xhr.onerror = (): void => {
-      if (!req.done) {
-        req.done = true;
-        req.success = false;
-        req.resolve(getResponse('error'));
-      }
-    };
-
-    xhr.onabort = (): void => {
-      if (!req.done) {
-        req.done = true;
-        req.aborted = true;
-        req.success = false;
-        req.resolve(getResponse('abort'));
-      }
-    };
-
-    xhr.ontimeout = (): void => {
-      if (!req.done) {
-        req.done = true;
-        req.timedout = true;
-        req.success = false;
-        req.resolve(getResponse('timeout'));
-      }
-    };
-
-    xhr.open(method, url, true);
-
-    if (withCredentials) {
-      // after open
-      xhr.withCredentials = true;
-    }
-
-    if (timeout) {
-      // set timeout if defined (do it after open so IE11 plays ball)
-      xhr.timeout = timeout;
-      setTimeout(() => {
-        if (!req.done) {
-          req.done = true;
-          req.timedout = true;
-          req.success = false;
-          req.resolve(getResponse('timeout'));
+        if (timeout) {
+          // set timeout if defined (do it after open so IE11 plays ball)
+          xhr.timeout = timeout;
+          setTimeout(() => end(req, 'timeout', resolve), timeout);
         }
-      }, timeout);
-    }
 
-    // set headers
-    let headersCopy = headers;
-    if (json) {
-      headersCopy = { ...headers };
-      if (!headersCopy) {
-        headersCopy = {};
-      }
-      if (!headersCopy.accept && !headersCopy.Accept) {
-        headersCopy.Accept = 'application/json';
-      }
-      if (
-        method !== 'GET' &&
-        method !== 'HEAD' &&
-        !headersCopy['content-type'] &&
-        !headersCopy['Content-Type']
-      ) {
-        headersCopy['Content-Type'] = 'application/json';
+        // set headers
+        const headers = getRequestHeaders(options);
+        options.headers = headers;
+        setRequestHeaders(xhr, headers);
+
+        if (responseType) {
+          xhr.responseType = responseType;
+        } else if (json) {
+          xhr.responseType = 'json';
+        }
+
+        xhr.send(getRequestBody(options));
+      } catch (e) {
+        end(req, 'error', resolve);
       }
     }
-
-    if (headersCopy) {
-      Object.keys(headersCopy).forEach((key) =>
-        xhr.setRequestHeader(key, headersCopy![key])
-      );
-    }
-
-    if (listeners) {
-      Object.keys(listeners).forEach((key) =>
-        xhr.addEventListener(key, listeners[key])
-      );
-    }
-
-    if (responseType) {
-      xhr.responseType = responseType;
-    } else if (json) {
-      xhr.responseType = 'json';
-    }
-
-    let body = data == null ? null : data;
-    if (
-      body != null &&
-      typeof body !== 'string' &&
-      headersCopy &&
-      jsonRegex.test(
-        headersCopy['content-type'] || headersCopy['Content-Type'] || ''
-      )
-    ) {
-      body = JSON.stringify(body);
-    }
-
-    xhr.send(body);
-  } catch (e) {
-    req.resolve(getResponse('error'));
-  }
-
-  return req;
-};
+  );
