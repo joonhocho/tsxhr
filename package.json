@@ -1,6 +1,6 @@
 {
   "name": "tsxhr",
-  "version": "0.0.8",
+  "version": "0.0.9",
   "description": "A super lightweight XMLHttpRequest wrapper written in TypeScript. No dependencies.",
   "keywords": [
     "XMLHttpRequest",
@@ -15,10 +15,21 @@
     "xhr",
     "xr"
   ],
+  "author": "Joon Ho Cho",
+  "license": "MIT",
+  "homepage": "https://github.com/joonhocho/tsxhr#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/joonhocho/tsxhr.git"
+  },
+  "bugs": {
+    "url": "https://github.com/joonhocho/tsxhr/issues"
+  },
   "module": "lib/index.js",
   "main": "dist/node/index.js",
   "browser": "dist/browser/index.js",
   "types": "lib/index.d.ts",
+  "sideEffects": false,
   "scripts": {
     "all": "npm run clean && npm run format && npm run lint:fix && npm run build:all && npm run test",
     "build:all": "npm run build:module && npm run build:node && npm run build:browser",
@@ -39,18 +50,11 @@
     "test:watch": "jest --watch"
   },
   "pre-commit": "precommit",
-  "author": "Joon Ho Cho",
-  "license": "MIT",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/joonhocho/tsxhr.git"
-  },
-  "bugs": {
-    "url": "https://github.com/joonhocho/tsxhr/issues"
-  },
-  "homepage": "https://github.com/joonhocho/tsxhr#readme",
   "dependencies": {
-    "ts-url": "^0.0.9"
+    "ts-url": "^0.0.11"
+  },
+  "peerDependencies": {
+    "tslib": "^1.10.0"
   },
   "devDependencies": {
     "@types/jest": "^24.0.15",
@@ -61,14 +65,11 @@
     "prettier": "^1.18.2",
     "ts-jest": "^24.0.2",
     "tscpaths": "^0.0.9",
-    "tsdef": "^0.0.9",
+    "tsdef": "^0.0.13",
     "tslint": "^5.18.0",
     "tslint-config-airbnb": "^5.11.1",
     "tslint-config-prettier": "^1.18.0",
     "typescript": "^3.5.3"
-  },
-  "peerDependencies": {
-    "tslib": "^1.10.0"
   },
   "engines": {
     "node": ">=8.0.0"
