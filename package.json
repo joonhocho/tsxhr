@@ -1,6 +1,6 @@
 {
   "name": "tsxhr",
-  "version": "0.0.7",
+  "version": "0.0.8",
   "description": "A super lightweight XMLHttpRequest wrapper written in TypeScript. No dependencies.",
   "keywords": [
     "XMLHttpRequest",
