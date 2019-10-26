@@ -3620,10 +3620,10 @@ ts-jest@^24.1.0:
     semver "^5.5"
     yargs-parser "10.x"
 
-ts-url@^0.0.16:
-  version "0.0.16"
-  resolved "https://registry.npmjs.org/ts-url/-/ts-url-0.0.16.tgz#792dfc8e1111abd2f3e7c3d57ef14e3e0371571c"
-  integrity sha512-J6ohByoLZ5UOtAhPhODIlWSTELMuI/ZhM8hchEWyOnyzW1qqHMe/WovQBzea/FZ7jkTiQ6VL0/moVz4WB0Zj2Q==
+ts-url@^0.0.17:
+  version "0.0.17"
+  resolved "https://registry.npmjs.org/ts-url/-/ts-url-0.0.17.tgz#5608d10dd713b6cad6790e249f0c21469913d41a"
+  integrity sha512-ZIBoF04kVxhx3ocR9PhARmU7iPHWGLKyLEYxbPn0wvYrVPFFEk0Tx+YFPliFJYAH5gpwQE+1ldB3eogiLM83fg==
 
 tscpaths@^0.0.9:
   version "0.0.9"
