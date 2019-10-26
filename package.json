@@ -1,6 +1,6 @@
 {
   "name": "tsxhr",
-  "version": "0.0.10",
+  "version": "0.0.11",
   "description": "A super lightweight XMLHttpRequest wrapper written in TypeScript. No dependencies.",
   "keywords": [
     "XMLHttpRequest",
@@ -51,7 +51,7 @@
   },
   "pre-commit": "precommit",
   "dependencies": {
-    "ts-url": "^0.0.16"
+    "ts-url": "^0.0.17"
   },
   "peerDependencies": {
     "tslib": "^1.10.0"
