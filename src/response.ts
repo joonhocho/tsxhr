@@ -1,9 +1,13 @@
 import { Request } from './request';
 import { getResponseData } from './responseData';
-import { EndStatus, ErrorReason } from './ts';
+import { EndStatus } from './ts';
 
 export class Response<TData> {
-  constructor(public req: Request<TData>, public endStatus: EndStatus) {}
+  constructor(
+    public req: Request<TData>,
+    public endStatus: EndStatus,
+    public error: Error | null
+  ) {}
 
   get xhr(): XMLHttpRequest {
     return this.req.xhr;
@@ -20,18 +24,6 @@ export class Response<TData> {
   get success(): boolean {
     const { status } = this;
     return status >= 200 && status < 300;
-  }
-
-  get error(): ErrorReason | undefined {
-    const { endStatus } = this;
-    if (
-      endStatus === 'timeout' ||
-      endStatus === 'abort' ||
-      endStatus === 'error'
-    ) {
-      return endStatus;
-    }
-    return;
   }
 
   get data(): TData {

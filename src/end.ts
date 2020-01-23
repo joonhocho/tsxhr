@@ -5,13 +5,14 @@ import { EndStatus, Resolve } from './ts';
 export const end = <TData>(
   req: Request<TData>,
   status: EndStatus,
+  error: Error | null,
   resolve: Resolve<Response<TData>>
 ): void => {
   if (!req.done) {
     req.done = true;
     req.aborted = status === 'abort';
     if (status !== 'redirect') {
-      resolve(new Response(req, status));
+      resolve(new Response(req, status, error));
     }
   }
 };

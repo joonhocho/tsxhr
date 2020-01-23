@@ -31,7 +31,7 @@ export const setRequestHeaders = (
   headers: RequestHeaders | undefined
 ): void => {
   if (headers) {
-    Object.keys(headers).forEach((key) =>
+    Object.keys(headers).forEach((key): void =>
       xhr.setRequestHeader(key, headers![key])
     );
   }

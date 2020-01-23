@@ -7,6 +7,7 @@ import { getRedirectOptions } from './redirect';
 import { Request } from './request';
 import { getRequestBody } from './requestBody';
 import { IRequestOptions, ReadyState } from './ts';
+import { getError } from './error';
 
 export const request = <TData = any>(
   options: IRequestOptions<TData>
@@ -51,7 +52,7 @@ export const request = <TData = any>(
           if (xhr.readyState === ReadyState.DONE) {
             // timeout so that this gets called after onload/onerror/onabort
             // should not be here in general
-            setTimeout(() => end(req, 'success', resolve), 1);
+            setTimeout((): void => end(req, 'success', null, resolve), 1);
           }
         };
 
@@ -64,7 +65,7 @@ export const request = <TData = any>(
             ) {
               // remove listeners
               if (listeners) {
-                Object.keys(listeners).forEach((key) =>
+                Object.keys(listeners).forEach((key): void =>
                   xhr.removeEventListener(key, listeners[key])
                 );
               }
@@ -72,21 +73,39 @@ export const request = <TData = any>(
               const nextReq = request(redirectOpts);
               req.redirectReq = nextReq;
               nextReq.res.then(resolve, reject);
-              end(req, 'redirect', resolve);
+              end(req, 'redirect', null, resolve);
               return;
             }
 
-            end(req, 'success', resolve);
+            end(req, 'success', null, resolve);
           }
         };
 
-        xhr.onerror = (): void => end(req, 'error', resolve);
-        xhr.onabort = (): void => end(req, 'abort', resolve);
-        xhr.ontimeout = (): void => end(req, 'timeout', resolve);
+        xhr.onerror = (e): void =>
+          end(
+            req,
+            'error',
+            getError(xhr, 'XMLHttpRequest.onerror', e),
+            resolve
+          );
+        xhr.onabort = (e): void =>
+          end(
+            req,
+            'abort',
+            getError(xhr, 'XMLHttpRequest.onabort', e),
+            resolve
+          );
+        xhr.ontimeout = (e): void =>
+          end(
+            req,
+            'timeout',
+            getError(xhr, 'XMLHttpRequest.ontimeout', e),
+            resolve
+          );
 
         // add listeners
         if (listeners) {
-          Object.keys(listeners).forEach((key) =>
+          Object.keys(listeners).forEach((key): void =>
             xhr.addEventListener(key, listeners[key])
           );
         }
@@ -101,7 +120,11 @@ export const request = <TData = any>(
         if (timeout) {
           // set timeout if defined (do it after open so IE11 plays ball)
           xhr.timeout = timeout;
-          setTimeout(() => end(req, 'timeout', resolve), timeout);
+          setTimeout(
+            (): void =>
+              end(req, 'timeout', getError(xhr, 'xhr setTimeout'), resolve),
+            timeout
+          );
         }
 
         // set headers
@@ -117,7 +140,7 @@ export const request = <TData = any>(
 
         xhr.send(getRequestBody(options));
       } catch (e) {
-        end(req, 'error', resolve);
+        end(req, 'error', getError(xhr, 'xhr exception', e), resolve);
       }
     }
   );
